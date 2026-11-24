@@ -1,0 +1,89 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String        @id @default(uuid())
+  name              String
+  email             String        @unique
+  password          String
+  role              String        @default("STUDENT")
+  xp                Int           @default(0)
+  // ---- Premium + referral ----
+  premiumUntil      DateTime?     // Premium is active while this date is in the future
+  referralCode      String?       @unique
+  referredById      String?       // who invited this user
+  referralRewarded  Boolean       @default(false) // the inviter already got the reward for this user
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  submissions       Submission[]
+  createdChallenges Challenge[]
+  payments          Payment[]
+  weeklyAwards      WeeklyAward[]
+}
+
+model Challenge {
+  id          String       @id @default(uuid())
+  order       Int          @default(0) // <-- ADDED: For the learning path sequence
+  title       String
+  topic       String
+  lesson      String?      // <-- ADDED: The theory text before coding
+  description String
+  category    String
+  difficulty  String
+  solution    String?
+  xpReward    Int          @default(100)
+  deadline    DateTime
+  createdAt   DateTime     @default(now())
+  // ---- Premium content ----
+  isPremium   Boolean      @default(false) // only Premium members can open it
+  isBonus     Boolean      @default(false) // extra bonus question
+  company     String?      // company-specific interview question, e.g. "TCS"
+  creatorId   String?
+  creator     User?        @relation(fields: [creatorId], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  content     String
+  status      String   @default("PENDING")
+  score       Int?
+  feedback    String?
+  createdAt   DateTime @default(now())
+  userId      String
+  challengeId String
+  user        User      @relation(fields: [userId], references: [id])
+  challenge   Challenge @relation(fields: [challengeId], references: [id])
+}
+
+// A Premium purchase. provider is "TEST" until a real payment gateway (e.g. Razorpay) is connected.
+model Payment {
+  id        String   @id @default(uuid())
+  plan      String   // MONTHLY | YEARLY
+  amountInr Int
+  provider  String   @default("TEST")
+  status    String   @default("PAID")
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// Weekly leaderboard prize (free Premium days). The unique key makes sure a week is paid out only once.
+model WeeklyAward {
+  id        String   @id @default(uuid())
+  weekKey   String   // Monday of that week, e.g. "2026-11-16"
+  rank      Int
+  days      Int
+  xp        Int
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([weekKey, userId])
+}
