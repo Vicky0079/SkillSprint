@@ -1,48 +1,30 @@
-const { GoogleGenAI } = require('@google/genai');
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const { generateText } = require('../services/aiService');
 
 const chatWithTutor = async (req, res) => {
   try {
     const { message, challengeDescription, userCode } = req.body;
+    if (!message || !String(message).trim()) return res.status(400).json({ reply: 'Please type a question.' });
 
     const prompt = `
-      You are an expert, encouraging coding tutor for SkillSprint. 
-      The student is working on this challenge: "${challengeDescription}".
-      
-      Their current code is:
-      \`\`\`
-      ${userCode || "No code written yet."}
-      \`\`\`
-      
-      The student asks: "${message}"
-      
-      Provide a helpful, concise response. 
-      CRITICAL RULE: DO NOT give them the full correct code directly. Instead, guide them, explain the concept, or point out the specific error in their current code.
-    `;
+You are an expert, encouraging coding tutor for SkillSprint.
+The student is working on this challenge: "${challengeDescription || 'a coding challenge'}".
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash', // <-- FIXED MODEL NAME
-          contents: prompt,
-        });
-        return res.json({ reply: response.text });
-      } catch (error) {
-        console.error(`🔥 Chat Attempt ${attempt} failed:`, error.message);
-        
-        if (attempt === 3) {
-          return res.status(500).json({ 
-            reply: "I'm having trouble connecting to my brain right now (High API Demand). Please try again in a few seconds!" 
-          });
-        }
-        await sleep(2000); 
-      }
-    }
+Their current code is:
+\`\`\`
+${userCode || 'No code written yet.'}
+\`\`\`
+
+The student asks: "${message}"
+
+Provide a helpful, concise response.
+CRITICAL RULE: DO NOT give them the full correct code directly. Instead, guide them, explain the concept, or point out the specific error in their current code.`;
+
+    const reply = await generateText(prompt, { maxWaitMs: 45 * 1000 });
+    return res.json({ reply });
   } catch (error) {
-    console.error("🔥 Server Error in Chat Controller:", error.message);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('🔥 Chat failed:', error.status || '', error.message);
+    // 200 on purpose: the frontend shows this text instead of "couldn't connect to the server"
+    return res.json({ reply: "I'm having trouble reaching my AI brain right now. Please try again in a few seconds." });
   }
 };
 

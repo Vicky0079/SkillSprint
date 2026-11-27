@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') }); // always load backend/.env, whatever folder you start from
 
 const app = express();
 const PORT = process.env.PORT || 5000;

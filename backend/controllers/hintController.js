@@ -1,9 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { ai, MODEL, isRetryable } = require('../services/aiService');
+const { generateText } = require('../services/aiService');
 const { getProgress } = require('../services/progress');
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LEVEL_RULES = {
   1: 'LEVEL 1 (gentle nudge): Name the concept or idea the student should think about. Ask one guiding question. NO code at all.',
@@ -39,21 +38,12 @@ ${LEVEL_RULES[level]}
 
 Keep it under 80 words, encouraging, simple words, markdown allowed.`;
 
-    for (let attempt = 1; attempt <= 4; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model: MODEL,
-          contents: prompt,
-          config: { httpOptions: { timeout: 30000 } },
-        });
-        return res.json({ hint: response.text, level });
-      } catch (error) {
-        console.error(`Hint attempt ${attempt} failed:`, error.message);
-        if (!isRetryable(error) || attempt === 4) {
-          return res.status(503).json({ message: 'The hint helper is busy right now. Please try again in a few seconds.' });
-        }
-        await sleep(2000 * attempt);
-      }
+    try {
+      const hint = await generateText(prompt, { maxWaitMs: 45 * 1000 });
+      return res.json({ hint, level });
+    } catch (error) {
+      console.error('Hint failed:', error.status || '', error.message);
+      return res.status(503).json({ message: 'The hint helper is busy right now. Please try again in a few seconds.' });
     }
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
